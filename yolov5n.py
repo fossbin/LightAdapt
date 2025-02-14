@@ -7,8 +7,11 @@ import numpy as np
 import cv2
 from ultralytics import YOLO
 
-device = "cpu"
-print("Using CPU for inference.")
+if torch.cuda.is_available():
+    device = "cuda"
+else:
+    device = "cpu"
+    print("CUDA is not available. Using CPU instead.")
 
 model = YOLO("yolov5nu.pt")
 model.to(device)
