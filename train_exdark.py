@@ -122,73 +122,44 @@ def create_dataset_yaml(output_path):
 
 def train_on_exdark(yaml_path):
     """
-    Train YOLOv8 on ExDark dataset with optimized parameters for RTX 3050 6GB VRAM.
+    Train YOLOv8 on ExDark dataset with memory optimizations for RTX 3050.
     """
-    model_path = 'yolov8n.pt'
+    # Ensure the yolov8n.pt model is available locally
+    model_path = 'D:/steve/LightAdapt/yolov8n.pt'
     if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Model file '{model_path}' not found.")
+        raise FileNotFoundError(
+            f"Model file '{model_path}' not found. Please download it and place it in the current directory.")
 
-    # Load the YOLOv8n model
+    # Load the YOLOv8n model from the local file
     model = YOLO(model_path)
 
-    # Memory optimizations
+    # Memory optimizations before training
     torch.cuda.empty_cache()
-    torch.backends.cudnn.benchmark = True
-    torch.cuda.set_per_process_memory_fraction(0.95)  # Allow using more VRAM
 
-    # Train with optimized parameters
+    # Train with optimized parameters for 6GB VRAM
     results = model.train(
         data=yaml_path,
-        epochs=150,
-        imgsz=384,
-        batch=16,
-        patience=50,
-        device=0,
-        pretrained=True,
-        optimizer='AdamW',
-        lr0=0.01,
-        lrf=0.001,
-        momentum=0.937,
-        weight_decay=0.0005,
-        warmup_epochs=3,
-        warmup_momentum=0.8,
-        warmup_bias_lr=0.1,
-        box=7.5,
-        cls=0.5,
-        dfl=1.5,
-        pose=12.0,
-        kobj=1.0,
-        label_smoothing=0.1,
-        nbs=64,
-        hsv_h=0.015,
-        hsv_s=0.7,
-        hsv_v=0.4,
-        degrees=45.0,
-        translate=0.1,
-        scale=0.5,
-        shear=10.0,
-        perspective=0.0001,
-        flipud=0.5,
-        fliplr=0.5,
-        mosaic=1.0,
-        mixup=0.5,
-        copy_paste=0.3,
-        auto_augment='randaugment',
-        erasing=0.4,
-        cache=True,
-        save_period=5,
-        workers=8,
-        overlap_mask=True,
-        max_det=300,
-        amp=True,
-        profile=True,
-        # Multi-scale training
-        multi_scale=True,
-        scales=[0.8, 1.0, 1.2],
+        epochs=100,  # Train for 100 epochs
+        imgsz=416,  # Reduced image size for memory efficiency
+        batch=8,    # Adjusted batch size for RTX 3050 6GB
+        patience=20,  # Early stopping if no improvement
+        device=0,   # Use GPU
+        pretrained=True,  # Use pretrained weights
+        optimizer='AdamW',  # Optimizer choice
+        save=True,  # Save checkpoints
+        save_period=10,  # Save every 10 epochs
+        cache=False,  # Disable caching to save memory
+        amp=True,    # Enable mixed precision training
+        verbose=True,  # Print training progress
+        workers=4,   # Reduced number of workers for memory efficiency
+        close_mosaic=10,  # Disable mosaic augmentation in the last 10 epochs
+        max_det=100,  # Maximum number of detections per image
+        overlap_mask=False,  # Disable overlapping masks
+        profile=True,  # Profile CUDA memory usage
     )
 
     # Save the final model
-    model.save('exdark_yolov8n_optimized.pt')
+    model.save('exdark_yolov8n.pt')
     return results
 
 
