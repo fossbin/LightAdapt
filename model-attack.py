@@ -14,34 +14,8 @@ else:
     device = "cpu"
     print("CUDA is not available. Using CPU instead.")
 
-model = YOLO("yolov8n.pt")
+model = YOLO("exdark_yolov8n_improved.pt")
 model.to(device)
-
-# Path to the ExDark dataset
-dataset_path = "D:/steve/LightAdapt/ExDark"
-
-# Collect all image paths
-image_files = []
-for category_folder in os.listdir(dataset_path):
-    category_path = os.path.join(dataset_path, category_folder)
-    if os.path.isdir(category_path):
-        print(f"Processing category: {category_folder}")
-        for file in os.listdir(category_path):
-            if file.endswith((".jpg", ".png")):
-                image_files.append(os.path.join(category_path, file))
-
-if not image_files:
-    raise FileNotFoundError("No images found in the dataset directory.")
-
-
-def load_random_image():
-    img_path = random.choice(image_files)
-    img = cv2.imread(img_path)
-    if img is None:
-        raise ValueError(f"Unable to read image: {img_path}")
-    img = cv2.resize(img, (640, 640))
-    return img, img_path
-
 
 def generate_perlin_noise(shape):
     """Generate Perlin-like noise pattern"""

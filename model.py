@@ -10,7 +10,7 @@ else:
     print("CUDA is not available. Using CPU instead.")
 
 # Initialize model
-model = YOLO("yolov8n.pt")
+model = YOLO("exdark_yolov8n_improved.pt")
 model.to(device)
 
 

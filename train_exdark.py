@@ -14,9 +14,13 @@ torch.backends.cudnn.benchmark = True
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'  # Debugging CUDA operations
 
 
-def create_yolo_dataset(exdark_path, output_path):
+def create_yolo_dataset(exdark_path, annotations_path, output_path):
     """
     Convert ExDark dataset to YOLO format from category subfolders.
+    Args:
+        exdark_path (str): Path to the ExDark dataset folder (with subfolders like Bicycle, Bottle, etc.).
+        annotations_path (str): Path to the annotations folder (with subfolders like Bicycle, Bottle, etc.).
+        output_path (str): Path to save the processed dataset in YOLO format.
     """
     # Create directory structure
     os.makedirs(f"{output_path}/images/train", exist_ok=True)
@@ -66,7 +70,7 @@ def create_yolo_dataset(exdark_path, output_path):
         """Process and copy files to train/val splits."""
         for file_info in tqdm(files, desc=f"Processing {split} set"):
             img_path = file_info['path']
-            class_id = file_info['class_id']
+            category = file_info['category']
 
             # Generate unique filename to avoid conflicts
             img_name = os.path.basename(img_path)
@@ -76,12 +80,14 @@ def create_yolo_dataset(exdark_path, output_path):
             dest_img_path = f"{output_path}/images/{split}/{img_name}"
             shutil.copy2(img_path, dest_img_path)
 
-            # Create YOLO format label (dummy bounding box for demonstration)
-            label_content = f"{class_id} 0.5 0.5 0.5 0.5\n"
-
-            # Save label file
-            with open(f"{output_path}/labels/{split}/{base_name}.txt", 'w') as f:
-                f.write(label_content)
+            # Copy corresponding annotation file
+            annotation_path = os.path.join(
+                annotations_path, category, base_name + '.txt')
+            if os.path.exists(annotation_path):
+                dest_annotation_path = f"{output_path}/labels/{split}/{base_name}.txt"
+                shutil.copy2(annotation_path, dest_annotation_path)
+            else:
+                print(f"Warning: No annotation file found for {img_name}")
 
     process_files(train_files, "train")
     process_files(val_files, "val")
@@ -122,56 +128,49 @@ def create_dataset_yaml(output_path):
 
 def train_on_exdark(yaml_path):
     """
-    Train YOLOv8 on ExDark dataset with memory optimizations for RTX 3050.
+    Train YOLOv8 on ExDark dataset with optimized parameters.
     """
-    # Ensure the yolov8n.pt model is available locally
-    model_path = 'D:/steve/LightAdapt/yolov8n.pt'
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(
-            f"Model file '{model_path}' not found. Please download it and place it in the current directory.")
+    # Load pretrained YOLOv8 model
+    model = YOLO('yolov8n.pt')  # You can switch to yolov8s.pt or yolov8m.pt
 
-    # Load the YOLOv8n model from the local file
-    model = YOLO(model_path)
-
-    # Memory optimizations before training
-    torch.cuda.empty_cache()
-
-    # Train with optimized parameters for 6GB VRAM
+    # Train the model with improved hyperparameters
     results = model.train(
         data=yaml_path,
-        epochs=100,  # Train for 100 epochs
-        imgsz=416,  # Reduced image size for memory efficiency
-        batch=8,    # Adjusted batch size for RTX 3050 6GB
-        patience=20,  # Early stopping if no improvement
-        device=0,   # Use GPU
-        pretrained=True,  # Use pretrained weights
-        optimizer='AdamW',  # Optimizer choice
-        save=True,  # Save checkpoints
-        save_period=10,  # Save every 10 epochs
+        epochs=50,  # Reduced epochs
+        imgsz=640,  # Larger image size
+        batch=16,  # Increased batch size
+        patience=10,  # Early stopping
+        device=0 if torch.cuda.is_available() else 'cpu',
+        optimizer='SGD',  # Use SGD optimizer
+        lr0=0.001,  # Lower learning rate
+        lrf=0.1,  # Learning rate scheduler
+        mosaic=1.0,  # Enable mosaic augmentation
+        mixup=0.1,  # Enable mixup augmentation
         cache=False,  # Disable caching to save memory
-        amp=True,    # Enable mixed precision training
-        verbose=True,  # Print training progress
-        workers=4,   # Reduced number of workers for memory efficiency
-        close_mosaic=10,  # Disable mosaic augmentation in the last 10 epochs
-        max_det=100,  # Maximum number of detections per image
-        overlap_mask=False,  # Disable overlapping masks
+        amp=True,  # Mixed precision training
+        workers=4,  # Increased workers for faster data loading
+        overlap_mask=True,  # Enable overlapping masks
+        max_det=300,  # Maximum number of detections per image
         profile=True,  # Profile CUDA memory usage
     )
 
     # Save the final model
-    model.save('exdark_yolov8n.pt')
+    model.save('exdark_yolov8n_improved.pt')
     return results
 
 
 if __name__ == "__main__":
     # Set your paths
-    EXDARK_PATH = "ExDark"  # Your ExDark folder containing category subfolders
+    EXDARK_PATH = "d:/steve/LightAdapt/ExDark"  # Your ExDark folder containing category subfolders
+    # Folder containing annotations (with subfolders like Bicycle, Bottle, etc.)
+    ANNOTATIONS_PATH = "d:/steve/LightAdapt/annotations"
     OUTPUT_PATH = "processed_exdark"
 
     try:
         # Process dataset
         print("Creating YOLO format dataset...")
-        train_count, val_count = create_yolo_dataset(EXDARK_PATH, OUTPUT_PATH)
+        train_count, val_count = create_yolo_dataset(
+            EXDARK_PATH, ANNOTATIONS_PATH, OUTPUT_PATH)
         print(
             f"Dataset split complete: {train_count} training images, {val_count} validation images")
 
